@@ -2,9 +2,16 @@
 // מעתיקים מ-Firebase Console: Project settings → General → Your apps → Web app → SDK setup and configuration → Config.
 // הערכים האלה לא סודיים: Firebase בנוי כך שהם נמצאים בדפדפן. ההגנה על הנתונים היא בכללי האבטחה (firestore.rules).
 //
-// כל עוד הערך הוא null, האפליקציה עובדת ב״מצב מקומי״: בלי חשבונות, והנתונים נשמרים רק בטלפון.
+// אם מחזירים את הערך ל-null, האפליקציה עובדת ב״מצב מקומי״: בלי חשבונות, והנתונים נשמרים רק בטלפון.
 
-export const firebaseConfig = null;
+export const firebaseConfig = {
+  apiKey: "AIzaSyCD4iPhMNmVEin_0pn3zO-GuL6bS_umKgc",
+  authDomain: "rsg1-d3783.firebaseapp.com",
+  projectId: "rsg1-d3783",
+  storageBucket: "rsg1-d3783.firebasestorage.app",
+  messagingSenderId: "647037659881",
+  appId: "1:647037659881:web:a6daa2171d6cd61282de78",
+};
 
 // דוגמה למבנה:
 // export const firebaseConfig = {
