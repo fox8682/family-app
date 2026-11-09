@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// כללי אבטחה: כל משפחה רואה רק את הנתונים שלה.
+// מצטרפים למשפחה רק עם קוד ההזמנה שלה.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function famPath(fid) { return /databases/$(database)/documents/families/$(fid); }
+    function isMember(fid) { return signedIn() && exists(famPath(fid)) && uid() in get(famPath(fid)).data.members; }
+    function validRole(r) { return r in ['mom', 'dad']; }
+
+    // לכל משתמש: לאיזו משפחה הוא שייך. רק הוא קורא וכותב.
+    match /users/{userId} {
+      allow read, write: if signedIn() && uid() == userId;
+    }
+
+    // קוד הזמנה → מזהה משפחה. אפשר לקרוא קוד מסוים רק אם יודעים אותו (אין רשימה).
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['familyId'])
+        && uid() in getAfter(famPath(request.resource.data.familyId)).data.members;
+      allow update: if false;
+      allow delete: if isMember(resource.data.familyId);
+    }
+
+    match /families/{fid} {
+      allow read: if signedIn() && uid() in resource.data.members;
+
+      // יצירת משפחה: היוצר הוא החבר היחיד.
+      allow create: if signedIn()
+        && request.resource.data.members.keys().hasOnly([uid()])
+        && validRole(request.resource.data.members[uid()])
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.size() >= 6;
+
+      // חבר במשפחה יכול לעדכן הכל.
+      // מי שאינו חבר יכול רק להוסיף את עצמו, ורק עם קוד ההזמנה הנכון.
+      allow update: if signedIn() && (
+        uid() in resource.data.members
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'joins'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([uid()])
+          && validRole(request.resource.data.members[uid()])
+          && request.resource.data.joins[uid()] == resource.data.inviteCode
+        )
+      );
+      allow delete: if false;
+
+      match /log/{entry} {
+        allow read, write: if isMember(fid);
+      }
+    }
+  }
+}
