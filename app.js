@@ -137,6 +137,21 @@ function loadLocal() {
   me = u === 'mom' || u === 'dad' ? u : null;
 }
 
+function localLeftover() {
+  if (!isCloud() || lsGet('fq-migrated-' + family?.id)) return null;
+  try {
+    const raw = JSON.parse(lsGet(KEY) || 'null');
+    return raw && Array.isArray(raw.kids) && raw.kids.length ? raw : null;
+  } catch (e) { return null; }
+}
+function migrateCard() {
+  const d = localLeftover();
+  if (!d) return '';
+  return `<div class="install"><div style="font-size:30px">📦</div>
+    <div class="t"><b>יש נתונים מהגרסה הקודמת בטלפון הזה</b>${d.kids.length} ילדים, ${(d.meds || []).length} תרופות, ${(d.activities || []).length} חוגים. להעביר אותם לחשבון?</div>
+    <button class="btn gold small" data-act="migrate">העברה</button></div>`;
+}
+
 /* ---------- cloud snapshots → state ---------- */
 const arr = m => Object.values(m || {}).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 function applyFamily(d) {
@@ -398,7 +413,7 @@ function kidsStrip() {
 function viewHome() {
   const t = today(), dow = new Date().getDay();
   if (!state.kids.length) {
-    return `${installCard()}<div class="card" style="text-align:center">
+    return `${migrateCard()}${installCard()}<div class="card" style="text-align:center">
       <div style="font-size:56px">🧸</div>
       <h2 style="justify-content:center">ברוכים הבאים למשחק!</h2>
       <p class="muted">המשימה הראשונה: להוסיף את הילדים.<br>אחר כך מוסיפים חוגים, רופאים ותרופות.</p>
@@ -421,6 +436,7 @@ function viewHome() {
   const msg = !total ? 'אין משימות היום. יום חופשי! 🏖️' : pct === 100 ? 'כל המשימות הושלמו! אלופים 🏆' : `נשארו ${total - doneN} משימות`;
   const [mx, dx] = [xpOf('mom'), xpOf('dad')];
   return `
+  ${migrateCard()}
   ${installCard()}
   ${kidsStrip()}
   <div class="card">
@@ -955,6 +971,30 @@ const A = {
   shareApp: () => share('🏰 מצאתי אפליקציה מגניבה לניהול הילדים: חוגים, רופאים, תורים ותרופות. הכל בעיצוב של משחק! פותחים חשבון משפחתי בחינם:', APP_URL),
   install: async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; render(); },
   dismissInstall: () => { lsSet(DISMISS_KEY, '1'); render(); },
+  migrate: async () => {
+    const d = localLeftover(); if (!d) return;
+    const hasData = state.kids.length > 0;
+    const choice = await ask('להעביר את הנתונים לחשבון?', hasData
+      ? 'בחשבון כבר יש נתונים. אפשר להוסיף אליהם את הנתונים מהטלפון, או לוותר.'
+      : 'הילדים, החוגים, הרופאים, התורים והתרופות יועברו לחשבון, וכל בני המשפחה יראו אותם.', [
+      { label: hasData ? '➕ להוסיף לנתונים בחשבון' : '📦 כן, להעביר', value: 'go', cls: 'primary' },
+      { label: 'לא, תודה', value: 'skip', cls: 'ghost' }]);
+    if (!choice) return;
+    lsSet('fq-migrated-' + family.id, '1');
+    if (choice === 'skip') { render(); return; }
+    const merge = (a, b) => { const m = new Map((a || []).map(x => [x.id, x])); (b || []).forEach(x => m.set(x.id, x)); return [...m.values()]; };
+    const done = Object.fromEntries(Object.entries(d.done || {}).map(([k, v]) => [k.replace(':', '_'), v]));
+    const merged = {
+      parents: state.parents,
+      kids: merge(state.kids, d.kids), activities: merge(state.activities, d.activities), doctors: merge(state.doctors, d.doctors),
+      appointments: merge(state.appointments, d.appointments), meds: merge(state.meds, d.meds),
+      log: merge(state.log, d.log), done: { ...state.done, ...done },
+      xp: { mom: (state.xp.mom || 0) + (d.xp?.mom || 0), dad: (state.xp.dad || 0) + (d.xp?.dad || 0) },
+      stars: { ...(d.stars || {}), ...state.stars },
+    };
+    w(S.replaceAll(merged, []));
+    confetti(); toast('הנתונים הועברו לחשבון ✅', 'xp'); render();
+  },
 
   addKid: () => kidForm(),
   editKid: el => kidForm(state.kids.find(k => k.id === el.dataset.id)),

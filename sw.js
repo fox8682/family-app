@@ -1,5 +1,5 @@
 // Offline cache: the app works without internet after the first visit.
-const CACHE = 'family-quest-v3';
+const CACHE = 'family-quest-v4';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'cloud.js', 'firebase-config.js', 'manifest.json', 'icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
